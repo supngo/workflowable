@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:flowable="http://flowable.org/bpmn"
+                  targetNamespace="http://flowable.org/bpmn">
+
+  <bpmn:process id="annualInspection" name="Annual Inspection" isExecutable="true">
+    <bpmn:startEvent id="startEvent" name="Start Annual Inspection">
+      <bpmn:outgoing>flow_to_servicer_submit</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Servicer Task to Submit Data -->
+    <bpmn:userTask id="servicerSubmit" name="Servicer Submit Data" flowable:assignee="${servicer}">
+      <bpmn:incoming>flow_to_servicer_submit</bpmn:incoming>
+      <bpmn:outgoing>flow_to_analyst_review</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="flow_to_servicer_submit" sourceRef="startEvent" targetRef="servicerSubmit"/>
+
+    <!-- Analyst Task to Review -->
+    <bpmn:userTask id="analystReview" name="Analyst Review" flowable:assignee="${analyst}">
+      <bpmn:incoming>flow_to_analyst_review</bpmn:incoming>
+      <bpmn:outgoing>flow_to_analyst_decision</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="flow_to_analyst_review" sourceRef="servicerSubmit" targetRef="analystReview"/>
+
+    <!-- Analyst Decision Gateway -->
+    <bpmn:exclusiveGateway id="analystDecisionGateway" name="Analyst Decision">
+      <bpmn:incoming>flow_to_analyst_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_analyst_approve</bpmn:outgoing>
+      <bpmn:outgoing>flow_analyst_reject</bpmn:outgoing>
+      <bpmn:outgoing>flow_analyst_send_back</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="flow_to_analyst_decision" sourceRef="analystReview" targetRef="analystDecisionGateway"/>
+
+    <!-- Analyst Approves -->
+    <bpmn:sequenceFlow id="flow_analyst_approve" sourceRef="analystDecisionGateway" targetRef="managerReview">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[${decision == 'approve'}]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Analyst Rejects -->
+    <bpmn:sequenceFlow id="flow_analyst_reject" sourceRef="analystDecisionGateway" targetRef="servicerSubmit">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[${decision == 'reject'}]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Analyst Sends Back to Servicer -->
+    <bpmn:sequenceFlow id="flow_analyst_send_back" sourceRef="analystDecisionGateway" targetRef="servicerEdit">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[${decision == 'send_back'}]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Servicer Task to Submit New Data (if Rejected) -->
+    <!-- <bpmn:userTask id="servicerSubmitNew" name="Servicer Submit New Data" flowable:assignee="${servicer}">
+      <bpmn:incoming>flow_analyst_reject</bpmn:incoming>
+      <bpmn:outgoing>flow_to_analyst_review_after_rejection</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="flow_to_analyst_review_after_rejection" sourceRef="servicerSubmitNew" targetRef="analystReview"/> -->
+
+    <!-- Servicer Task to Edit Data (if Sent Back) -->
+    <bpmn:userTask id="servicerEdit" name="Servicer Edit Data" flowable:assignee="${servicer}">
+      <bpmn:incoming>flow_analyst_send_back</bpmn:incoming>
+      <bpmn:outgoing>flow_to_analyst_review_after_edit</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="flow_to_analyst_review_after_edit" sourceRef="servicerEdit" targetRef="analystReview"/>
+
+    <!-- Manager Task to Review -->
+    <bpmn:userTask id="managerReview" name="Manager Review" flowable:assignee="${manager}">
+      <bpmn:incoming>flow_analyst_approve</bpmn:incoming>
+      <bpmn:outgoing>flow_to_manager_decision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Manager Decision Gateway -->
+    <bpmn:exclusiveGateway id="managerDecisionGateway" name="Manager Decision">
+      <bpmn:incoming>flow_to_manager_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_manager_approve</bpmn:outgoing>
+      <bpmn:outgoing>flow_manager_reject</bpmn:outgoing>
+      <bpmn:outgoing>flow_manager_send_back</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="flow_to_manager_decision" sourceRef="managerReview" targetRef="managerDecisionGateway"/>
+
+    <!-- Manager Approves -->
+    <bpmn:sequenceFlow id="flow_manager_approve" sourceRef="managerDecisionGateway" targetRef="endEvent">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[${decision == 'approve'}]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Manager Rejects -->
+    <bpmn:sequenceFlow id="flow_manager_reject" sourceRef="managerDecisionGateway" targetRef="servicerSubmit">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[${decision == 'reject'}]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Manager Sends Back to Analyst -->
+    <bpmn:sequenceFlow id="flow_manager_send_back" sourceRef="managerDecisionGateway" targetRef="analystReview">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[${decision == 'send_back'}]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="endEvent" name="End">
+      <bpmn:incoming>flow_manager_approve</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+</bpmn:definitions>
